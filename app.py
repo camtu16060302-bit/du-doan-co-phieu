@@ -15,8 +15,8 @@ from tensorflow.keras.callbacks import EarlyStopping
 st.set_page_config(page_title="Dự Báo Cổ Phiếu AI", layout="wide")
 st.title("📈 Ứng Dụng Dự Báo Giá Cổ Phiếu Bằng AI (LSTM)")
 
-# Khung nhập mã cổ phiếu
-ticker = st.text_input("Nhập mã cổ phiếu (VD: VNM.VN, FPT.VN, AAPL):", "VNM.VN")
+# Khung nhập mã cổ phiếu (Gõ VNM hay VNM.VN đều chạy được)
+ticker_input = st.text_input("Nhập mã cổ phiếu (VD: VNM, FPT, HPG, AAPL):", "VNM")
 
 # Tạo 3 cột để đặt ngày bắt đầu, ngày kết thúc và số ngày dự báo
 col1, col2, col3 = st.columns(3)
@@ -42,11 +42,25 @@ else:
             tf.random.set_seed(seed)
             random.seed(seed)
             
-            # Tải dữ liệu
-            df = yf.download(ticker, start=start_date.strftime("%Y-%m-%d"), end=end_date.strftime("%Y-%m-%d"))
+            # --- XỬ LÝ MÃ CỔ PHIẾU LẠI THÔNG MINH (CÓ .VN HAY KHÔNG ĐỀU CHẠY ĐƯỢC) ---
+            clean_input = ticker_input.strip().upper()
+            base_ticker = clean_input.replace(".VN", "")
+            
+            # Danh sách ưu tiên: Thử có .VN trước, nếu không được mới thử mã gốc
+            candidate_tickers = [f"{base_ticker}.VN", base_ticker]
+            
+            df = pd.DataFrame()
+            final_ticker = clean_input
+            
+            for t in candidate_tickers:
+                df_temp = yf.download(t, start=start_date.strftime("%Y-%m-%d"), end=end_date.strftime("%Y-%m-%d"), progress=False)
+                if not df_temp.empty:
+                    df = df_temp
+                    final_ticker = t
+                    break
             
             if df.empty:
-                st.error(f"Không tìm thấy dữ liệu cho mã {ticker}. Vui lòng kiểm tra lại!")
+                st.error(f"Không tìm thấy dữ liệu cho mã '{ticker_input}'. Vui lòng kiểm tra lại mã cổ phiếu!")
             else:
                 data = df[['Close']].values
                 
@@ -122,7 +136,7 @@ else:
                     future_predictions = scaler.inverse_transform(future_predictions)
                     
                     # --- KẾT LUẬN & KHUYẾN NGHỊ ---
-                    st.subheader("💡 Kết luận & Khuyến nghị (Tham khảo)")
+                    st.subheader(f"💡 Kết luận & Khuyến nghị mã {final_ticker} (Tham khảo)")
                     
                     current_price = y_test_real[-1][0]
                     final_future_price = future_predictions[-1][0]
@@ -162,7 +176,7 @@ else:
                         future_x = range(len(y_test_real), len(y_test_real) + future_days)
                         ax.plot(future_x, future_predictions, marker='o', color='red', label=f"Dự báo {future_days} ngày tới")
                         
-                        ax.set_title("Biểu đồ giá thực tế và dự báo")
+                        ax.set_title(f"Biểu đồ giá thực tế và dự báo ({final_ticker})")
                         ax.legend()
                         st.pyplot(fig)
                     
